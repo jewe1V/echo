@@ -1,16 +1,16 @@
 import boto3
-import json
+import os
 
 def create_tables_with_documentapi():
     endpoint_url = "https://docapi.serverless.yandexcloud.net/ru-central1/b1g9m6ifucl0fqun2tt5/etn3unu88a78k9k8qlq7"
 
     dynamodb = boto3.resource(
         'dynamodb',
-        endpoint_url=endpoint_url,
-        region_name='ru-central1',
-        aws_access_key_id='YCAJEErXaLFasU8nB6l5L9WVN',
-        aws_secret_access_key='YCP5Oc34BYXfzjJZpuR2UPKO7mjsxHXy5hIpegnp',
-        aws_session_token='t1.9euelZqezImKz42em47Nxo2PnI7Ple3rnpWanZrLjceWmpPNxpCTzM-PzJLl9PdBKTk1-e99Pj3f3fT3AVg2NfnvfT4939Xi9eyGnNGQnoqLl9GPip2TlpzSjJuU7fmQj5qRlpvN5_XrnpWakJiXyZHLlorJmovMkp2dzYzv_MXrnpWakJiXyZHLlorJmovMkp2dzYy9656VmpKei8-WlZ6bkJiPyorNj8yUteuGnNGWnpLRkI-akZab0oyajYmajQ.oOlizBAp-g617EEH0V8yF3KcTimCfiR1okxCaXeRFGfDivhWD8h5Bu3j2Hf_rs2qbIw0r-HxPBg3S3-wYt8kBA'
+        endpoint_url=os.environ['YDB_ENDPOINT'],
+        region_name=os.environ['YDB_REGION'],
+        aws_access_key_id=os.environ['ACCESS_KEY_ID'],
+        aws_secret_access_key=os.environ['SECRET_ACCESS_KEY'],
+        aws_session_token=os.environ['AWS_SESSION_TOKEN']
     )
 
     users_table = dynamodb.create_table(
