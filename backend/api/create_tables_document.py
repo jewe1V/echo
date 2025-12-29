@@ -2,8 +2,6 @@ import boto3
 import os
 
 def create_tables_with_documentapi():
-    endpoint_url = "https://docapi.serverless.yandexcloud.net/ru-central1/b1g9m6ifucl0fqun2tt5/etn3unu88a78k9k8qlq7"
-
     dynamodb = boto3.resource(
         'dynamodb',
         endpoint_url=os.environ['YDB_ENDPOINT'],
