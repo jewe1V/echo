@@ -1,139 +1,99 @@
 openapi: 3.0.0
 info:
-  title: Echo Blog API
+  title: Echo API Gateway
   version: 1.0.0
-  description: API для блог-платформы Echo
-
-servers:
-  - url: https://{apiId}.apigw.yandexcloud.net
-    description: Production server
 
 paths:
+  /auth/register:
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ebf7s7a6utii7a9s3b
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /auth/login:
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ebf7s7a6utii7a9s3b
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /posts:
+    get:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ed73nh7d9r6sj606ma
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /posts/create:
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4e5ah93pa4gbctuvmuq
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /posts/{post_id}/edit:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4e2g8qod5mq21505pjp
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /posts/{post_id}/delete:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4edm18cmc672aanekjl
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /posts/{post_id}/like:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ern6kkanjnbhd0cp1r
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
+  /comments:
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4elffqnr1rf3a9o8dn9
+        tag: $latest
+        service_account_id: aje792745pkupoc2scm7
+
   /health:
     get:
-      summary: Health check
-      operationId: healthCheck
       x-yc-apigateway-integration:
-        type: cloud_functions
-        function_id: d4ei45oqmg6jnbcqmua9
-        tag: "$latest"
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  service:
-                    type: string
-
-  /api/posts:
-    get:
-      summary: Get all posts
-      operationId: getPosts
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-      x-yc-apigateway-integration:
-        type: cloud_functions
-        function_id: d4ei45oqmg6jnbcqmua9
-        tag: "$latest"
-      responses:
-        '200':
-          description: List of posts
-    post:
-      summary: Create a new post
-      operationId: createPost
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
+        type: dummy
+        http_code: 200
+        http_headers:
+          Content-Type: application/json
         content:
-          application/json:
-            schema:
-              type: object
-              required: [title, text]
-              properties:
-                title:
-                  type: string
-                text:
-                  type: string
-                imgUrl:
-                  type: string
-      x-yc-apigateway-integration:
-        type: cloud_functions
-        function_id: d4ei45oqmg6jnbcqmua9
-        tag: "$latest"
-      responses:
-        '201':
-          description: Post created
+          status: ok
+          service: echo-api
 
-  /api/auth/register:
-    post:
-      summary: Register new user
-      operationId: registerUser
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [username, email, password]
-              properties:
-                username:
-                  type: string
-                email:
-                  type: string
-                password:
-                  type: string
-                display_name:
-                  type: string
-      x-yc-apigateway-integration:
-        type: cloud_functions
-        function_id: d4ei45oqmg6jnbcqmua9
-        tag: "$latest"
-      responses:
-        '201':
-          description: User registered
-
-  /api/auth/login:
-    post:
-      summary: Login user
-      operationId: loginUser
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
-      x-yc-apigateway-integration:
-        type: cloud_functions
-        function_id: d4ei45oqmg6jnbcqmua9
-        tag: "$latest"
-      responses:
-        '200':
-          description: Login successful
-
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
