@@ -1,0 +1,139 @@
+openapi: 3.0.0
+info:
+  title: Echo Blog API
+  version: 1.0.0
+  description: API для блог-платформы Echo
+
+servers:
+  - url: https://{apiId}.apigw.yandexcloud.net
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ei45oqmg6jnbcqmua9
+        tag: "$latest"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+
+  /api/posts:
+    get:
+      summary: Get all posts
+      operationId: getPosts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ei45oqmg6jnbcqmua9
+        tag: "$latest"
+      responses:
+        '200':
+          description: List of posts
+    post:
+      summary: Create a new post
+      operationId: createPost
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, text]
+              properties:
+                title:
+                  type: string
+                text:
+                  type: string
+                imgUrl:
+                  type: string
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ei45oqmg6jnbcqmua9
+        tag: "$latest"
+      responses:
+        '201':
+          description: Post created
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                display_name:
+                  type: string
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ei45oqmg6jnbcqmua9
+        tag: "$latest"
+      responses:
+        '201':
+          description: User registered
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ei45oqmg6jnbcqmua9
+        tag: "$latest"
+      responses:
+        '200':
+          description: Login successful
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

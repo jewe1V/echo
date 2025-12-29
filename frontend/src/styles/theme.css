@@ -2,44 +2,75 @@
 
 :root {
   --font-size: 16px;
-  /* Echo Theme - Dark Deep */
+
+  /* Echo Theme - Dark Deep Core Colors */
   --background: #0F0F0F;
   --foreground: #E0E0E0;
-  --card: #1A1A1A;
-  --card-foreground: #E0E0E0;
-  --popover: #1A1A1A;
-  --popover-foreground: #E0E0E0;
+
+  /* Primary/Accent Color (Bright Green) - единственный источник зеленого цвета */
   --primary: #00FF9D;
   --primary-foreground: #0F0F0F;
-  --secondary: #888888;
-  --secondary-foreground: #E0E0E0;
+
+  /* Neutral Colors */
   --muted: #1A1A1A;
   --muted-foreground: #888888;
-  --accent: #00FF9D;
-  --accent-foreground: #0F0F0F;
+  --border: #2A2A2A;
+
+  /* Functional Colors */
   --destructive: #FF4757;
   --destructive-foreground: #E0E0E0;
-  --border: #2A2A2A;
-  --input: #1A1A1A;
-  --input-background: #1A1A1A;
-  --switch-background: #2A2A2A;
+
+  /* Typography */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
+
+  /* Effects */
   --ring: #00FF9D;
-  --chart-1: #00FF9D;
-  --chart-2: #32FFAA;
-  --chart-3: #00FF88;
-  --chart-4: #00E88E;
-  --chart-5: #00D081;
   --radius: 0.75rem;
-  --sidebar: #1A1A1A;
-  --sidebar-foreground: #E0E0E0;
-  --sidebar-primary: #00FF9D;
-  --sidebar-primary-foreground: #0F0F0F;
-  --sidebar-accent: #2A2A2A;
-  --sidebar-accent-foreground: #E0E0E0;
-  --sidebar-border: #2A2A2A;
-  --sidebar-ring: #00FF9D;
+
+  /* =========================================== */
+  /* Derived Colors - все наследуются от базовых */
+  /* =========================================== */
+
+  /* Card (наследуется от muted) */
+  --card: var(--muted);
+  --card-foreground: var(--foreground);
+
+  /* Popover (наследуется от card) */
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+
+  /* Secondary (наследуется от muted) */
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+
+  /* Accent - синоним primary для согласованности */
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
+
+  /* Input (наследуется от card) */
+  --input: var(--card);
+  --input-background: var(--card);
+
+  /* Switch (наследуется от border) */
+  --switch-background: var(--border);
+
+  /* Chart Colors - вариации primary цвета с разной прозрачностью */
+  --chart-1: var(--primary);
+  --chart-2: color-mix(in srgb, var(--primary) 85%, transparent);
+  --chart-3: color-mix(in srgb, var(--primary) 70%, transparent);
+  --chart-4: color-mix(in srgb, var(--primary) 55%, transparent);
+  --chart-5: color-mix(in srgb, var(--primary) 40%, transparent);
+
+  /* Sidebar - наследуется от card */
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--card-foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--border);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 .dark {
