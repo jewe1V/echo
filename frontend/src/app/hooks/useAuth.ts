@@ -1,43 +1,111 @@
 import { useState, useEffect } from "react";
 import { type User } from "../types";
 
+const API_BASE_URL = "https://d5dokul9oqi12k1uin8p.trruwy79.apigw.yandexcloud.net";
+
 export const useAuth = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [authToken, setAuthToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Загружаем пользователя из localStorage при монтировании
+    // Загружаем пользователя и токен из localStorage при монтировании
     useEffect(() => {
         const storedUser = localStorage.getItem("echo_current_user");
-        if (storedUser) {
+        const storedToken = localStorage.getItem("echo_auth_token");
+
+        if (storedUser && storedToken) {
             try {
                 setCurrentUser(JSON.parse(storedUser));
-            } catch (error) {
-                console.error("Error parsing stored user:", error);
-                localStorage.removeItem("echo_current_user");
+                setAuthToken(storedToken);
+            } catch (err) {
+                console.error("Ошибка парсинга сохраненных данных:", err);
+                clearStoredAuth();
             }
         }
         setIsLoading(false);
     }, []);
 
-    const getStoredUsers = (): User[] => {
-        const stored = localStorage.getItem("echo_users");
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (error) {
-                console.error("Error parsing stored users:", error);
-                return [];
-            }
-        }
-        return [];
+    // Очистка сохраненных данных авторизации
+    const clearStoredAuth = () => {
+        localStorage.removeItem("echo_current_user");
+        localStorage.removeItem("echo_auth_token");
+        setCurrentUser(null);
+        setAuthToken(null);
+        setError(null);
     };
 
+    // Валидация email
     const validateEmail = (email: string): boolean => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     };
 
-    const login = (email: string, password: string): { success: boolean; error?: string } => {
+    // Общая функция для API запросов
+    const apiRequest = async <T>(
+        endpoint: string,
+        method: string = "GET",
+        data?: any,
+        requireAuth: boolean = false
+    ): Promise<{ success: boolean; data?: T; error?: string }> => {
+        setError(null);
+
+        // Проверка авторизации если требуется
+        if (requireAuth && !authToken) {
+            return { success: false, error: "Требуется авторизация" };
+        }
+
+        const url = `${API_BASE_URL}${endpoint}`;
+        const headers: HeadersInit = {
+            "Content-Type": "application/json",
+        };
+
+        if (authToken) {
+            headers["Authorization"] = `Bearer ${authToken}`;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers,
+                body: data ? JSON.stringify(data) : undefined,
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                // Обработка специфичных ошибок
+                if (response.status === 401) {
+                    clearStoredAuth();
+                    return {
+                        success: false,
+                        error: "Сессия истекла. Пожалуйста, войдите снова.",
+                    };
+                }
+
+                return {
+                    success: false,
+                    error: responseData.error || `Ошибка ${response.status}`,
+                };
+            }
+
+            return { success: true, data: responseData };
+        } catch (err) {
+            const errorMessage = err instanceof Error
+                ? err.message
+                : "Ошибка соединения с сервером";
+
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    };
+
+    // Логин через API
+    const login = async (
+        email: string,
+        password: string
+    ): Promise<{ success: boolean; error?: string }> => {
+        // Валидация полей
         if (!email.trim() || !password.trim()) {
             return { success: false, error: "Заполните все поля" };
         }
@@ -46,19 +114,67 @@ export const useAuth = () => {
             return { success: false, error: "Введите корректный email" };
         }
 
-        const users = getStoredUsers();
-        const user = users.find((u) => u.email === email && u.password === password);
+        setIsLoading(true);
 
-        if (user) {
-            setCurrentUser(user);
-            localStorage.setItem("echo_current_user", JSON.stringify(user));
-            return { success: true };
+        try {
+            const result = await apiRequest<{
+                success: boolean;
+                token: string;
+                user: {
+                    user_id: string;
+                    email: string;
+                    username?: string;
+                    display_name?: string;
+                };
+            }>("/auth/login", "POST", {
+                email: email.trim().toLowerCase(),
+                password: password.trim(),
+            });
+
+            setIsLoading(false);
+
+            if (result.success && result.data) {
+                const { token, user } = result.data;
+
+                // Преобразуем ответ API в формат User
+                const transformedUser: User = {
+                    id: user.user_id,
+                    name: user.display_name || user.username || user.email.split('@')[0],
+                    email: user.email,
+                    username: user.username || user.email.split('@')[0],
+                    displayName: user.display_name,
+                };
+
+                // Сохраняем токен и пользователя
+                setAuthToken(token);
+                setCurrentUser(transformedUser);
+
+                localStorage.setItem("echo_auth_token", token);
+                localStorage.setItem("echo_current_user", JSON.stringify(transformedUser));
+
+                return { success: true };
+            }
+
+            return {
+                success: false,
+                error: result.error || "Неверный email или пароль",
+            };
+        } catch (err) {
+            setIsLoading(false);
+            return {
+                success: false,
+                error: "Ошибка соединения с сервером",
+            };
         }
-
-        return { success: false, error: "Неверный email или пароль" };
     };
 
-    const register = (name: string, email: string, password: string): { success: boolean; error?: string } => {
+    // Регистрация через API
+    const register = async (
+        name: string,
+        email: string,
+        password: string,
+        username?: string
+    ): Promise<{ success: boolean; error?: string }> => {
         // Валидация полей
         if (!name.trim() || !email.trim() || !password.trim()) {
             return { success: false, error: "Заполните все поля" };
@@ -76,79 +192,106 @@ export const useAuth = () => {
             return { success: false, error: "Пароль должен содержать минимум 6 символов" };
         }
 
-        const users = getStoredUsers();
+        setIsLoading(true);
 
-        // Проверка на существующий email
-        if (users.some((u) => u.email === email)) {
-            return { success: false, error: "Пользователь с таким email уже существует" };
+        try {
+            const result = await apiRequest<{
+                success: boolean;
+                token: string;
+                user: {
+                    user_id: string;
+                    email: string;
+                    username?: string;
+                    display_name?: string;
+                };
+            }>("/auth/register", "POST", {
+                email: email.trim().toLowerCase(),
+                password: password.trim(),
+                display_name: name.trim(),
+                username: username || email.split('@')[0],
+            });
+
+            setIsLoading(false);
+
+            if (result.success && result.data) {
+                const { token, user } = result.data;
+
+                // Преобразуем ответ API в формат User
+                const transformedUser: User = {
+                    id: user.user_id,
+                    name: user.display_name || user.username || name.trim(),
+                    email: user.email,
+                    username: user.username || email.split('@')[0],
+                    displayName: user.display_name,
+                };
+
+                // Сохраняем токен и пользователя
+                setAuthToken(token);
+                setCurrentUser(transformedUser);
+
+                localStorage.setItem("echo_auth_token", token);
+                localStorage.setItem("echo_current_user", JSON.stringify(transformedUser));
+
+                return { success: true };
+            }
+
+            return {
+                success: false,
+                error: result.error || "Ошибка при регистрации",
+            };
+        } catch (err) {
+            setIsLoading(false);
+            return {
+                success: false,
+                error: "Ошибка соединения с сервером",
+            };
         }
-
-        // Создание нового пользователя
-        const newUser: User = {
-            id: Date.now().toString(),
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            password: password.trim(),
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-            bio: "Новый пользователь Echo",
-        };
-
-        // Сохраняем пользователя
-        const updatedUsers = [...users, newUser];
-        localStorage.setItem("echo_users", JSON.stringify(updatedUsers));
-        setCurrentUser(newUser);
-        localStorage.setItem("echo_current_user", JSON.stringify(newUser));
-
-        return { success: true };
     };
 
+    // Выход
     const logout = () => {
-        setCurrentUser(null);
-        localStorage.removeItem("echo_current_user");
+        clearStoredAuth();
     };
 
-    const updateProfile = (updates: Partial<User>) => {
-        if (!currentUser) return false;
+    // Обновление профиля (если API поддерживает)
+    const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
+        if (!currentUser || !authToken) return false;
 
-        const updatedUser = { ...currentUser, ...updates };
-        setCurrentUser(updatedUser);
-        localStorage.setItem("echo_current_user", JSON.stringify(updatedUser));
-
-        // Обновляем также в списке пользователей
-        const users = getStoredUsers();
-        const updatedUsers = users.map((u) =>
-            u.id === currentUser.id ? updatedUser : u
-        );
-        localStorage.setItem("echo_users", JSON.stringify(updatedUsers));
-
-        return true;
+        // TODO: Реализовать при наличии соответствующего endpoint в API
+        console.log("Обновление профиля:", updates);
+        return false;
     };
 
-    // Функция для инициализации тестового пользователя (опционально)
-    const initDemoUser = () => {
-        const demoUser: User = {
-            id: "demo_123",
-            name: "Демо Пользователь",
-            email: "test@echo.com",
-            password: "password123",
-            avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Demo",
-            bio: "Тестовый пользователь для демонстрации",
-        };
+    // Проверка валидности токена
+    const validateToken = async (): Promise<boolean> => {
+        if (!authToken) return false;
 
-        const users = getStoredUsers();
-        if (!users.some(u => u.email === demoUser.email)) {
-            const updatedUsers = [...users, demoUser];
-            localStorage.setItem("echo_users", JSON.stringify(updatedUsers));
-        }
+        // Проверяем, есть ли токен и пользователь в localStorage
+        const storedToken = localStorage.getItem("echo_auth_token");
+        const storedUser = localStorage.getItem("echo_current_user");
+
+        return !!(storedToken && storedUser);
+    };
+
+    // Сброс ошибки
+    const clearError = () => {
+        setError(null);
     };
 
     return {
+        // Состояние
         currentUser,
+        authToken,
         isLoading,
+        error,
+
+        // Методы
         login,
         register,
         logout,
         updateProfile,
-        initDemoUser,
+        validateToken,
+        apiRequest,
+        clearError,
     };
 };

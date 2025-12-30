@@ -1,21 +1,22 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { X, Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (email: string, password: string) => void;
-  onRegister: (name: string, email: string, password: string) => void;
   initialMode?: "login" | "register";
+  onLogin?: (email: string, password: string) => Promise<{ success?: boolean; error?: string }> | void;
+  onRegister?: (name: string, email: string, password: string) => Promise<{ success?: boolean; error?: string }> | void;
 }
 
 export function AuthModal({
   isOpen,
   onClose,
+  initialMode = "login",
   onLogin,
   onRegister,
-  initialMode = "login",
 }: AuthModalProps) {
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -23,17 +24,35 @@ export function AuthModal({
     name: "",
     email: "",
     password: "",
+    username: "",
   });
-  const [errors, setErrors] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    login,
+    register,
+    isLoading: authLoading,
+    error: authError,
+    clearError
+  } = useAuth();
 
   // Сброс при изменении initialMode
   useEffect(() => {
     setMode(initialMode);
+    setFormData({ name: "", email: "", password: "", username: "" });
+    setErrors({});
+    setSubmitError(null);
+    clearError();
   }, [initialMode]);
+
+  // Обработка ошибок из хука useAuth
+  useEffect(() => {
+    if (authError) {
+      setSubmitError(authError);
+    }
+  }, [authError]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,14 +60,26 @@ export function AuthModal({
   };
 
   const validateForm = () => {
-    const newErrors = { name: "", email: "", password: "" };
+    const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    if (mode === "register" && !formData.name.trim()) {
-      newErrors.name = "Имя обязательно";
-      isValid = false;
+    // Валидация для регистрации
+    if (mode === "register") {
+      if (!formData.name.trim()) {
+        newErrors.name = "Имя обязательно";
+        isValid = false;
+      } else if (formData.name.length < 2) {
+        newErrors.name = "Имя должно содержать минимум 2 символа";
+        isValid = false;
+      }
+
+      if (formData.username && formData.username.length < 3) {
+        newErrors.username = "Имя пользователя должно содержать минимум 3 символа";
+        isValid = false;
+      }
     }
 
+    // Валидация email
     if (!formData.email.trim()) {
       newErrors.email = "Email обязателен";
       isValid = false;
@@ -57,6 +88,7 @@ export function AuthModal({
       isValid = false;
     }
 
+    // Валидация пароля
     if (!formData.password) {
       newErrors.password = "Пароль обязателен";
       isValid = false;
@@ -66,207 +98,325 @@ export function AuthModal({
     }
 
     setErrors(newErrors);
+    setSubmitError(null);
+    clearError();
+
     return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
       return;
     }
 
-    if (mode === "login") {
-      onLogin(formData.email, formData.password);
-    } else {
-      onRegister(formData.name, formData.email, formData.password);
-    }
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    // Сброс формы
-    setFormData({ name: "", email: "", password: "" });
-    setErrors({ name: "", email: "", password: "" });
-    setShowPassword(false);
+    try {
+      let result;
+
+      if (mode === "login") {
+        result = await login(formData.email, formData.password);
+      } else {
+        result = await register(
+            formData.name,
+            formData.email,
+            formData.password,
+            formData.username || undefined
+        );
+      }
+
+      if (result.success) {
+        // Успешная авторизация/регистрация
+        const completedForm = { ...formData };
+        setFormData({ name: "", email: "", password: "", username: "" });
+        setErrors({});
+        setShowPassword(false);
+        onClose(); // Закрываем модальное окно
+
+        // Если родитель передал коллбэки — вызовем их (например, чтобы выполнить навигацию)
+        try {
+          if (mode === "login" && onLogin) {
+            const res = await onLogin(completedForm.email, completedForm.password);
+            if (res && typeof res === "object" && "success" in res && !(res as any).success) {
+              setSubmitError((res as any).error || "Произошла ошибка");
+            }
+          }
+
+          if (mode === "register" && onRegister) {
+            const res = await onRegister(completedForm.name, completedForm.email, completedForm.password);
+            if (res && typeof res === "object" && "success" in res && !(res as any).success) {
+              setSubmitError((res as any).error || "Произошла ошибка");
+            }
+          }
+        } catch (err) {
+          console.error("Callback error:", err);
+        }
+      } else {
+        setSubmitError(result.error || "Произошла ошибка");
+      }
+    } catch (error) {
+      setSubmitError("Неизвестная ошибка. Попробуйте еще раз.");
+      console.error("Auth error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const switchMode = () => {
     setMode(mode === "login" ? "register" : "login");
-    setErrors({ name: "", email: "", password: "" });
+    setFormData({ name: "", email: "", password: "", username: "" });
+    setErrors({});
+    setSubmitError(null);
+    clearError();
   };
 
+  const handleClose = () => {
+    setFormData({ name: "", email: "", password: "", username: "" });
+    setErrors({});
+    setSubmitError(null);
+    setShowPassword(false);
+    clearError();
+    onClose();
+  };
+
+  const isLoading = isSubmitting || authLoading;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", duration: 0.5 }}
-            className="relative w-full max-w-md bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] shadow-[0_0_60px_rgba(0,255,157,0.1)] overflow-hidden"
-          >
-            {/* Glow effect */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#00FF9D]/5 to-transparent pointer-events-none" />
-
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-[#2A2A2A] text-[#888888] hover:text-[#00FF9D] hover:bg-[#333333] transition-all hover:shadow-[0_0_20px_rgba(0,255,157,0.3)]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Content */}
-            <div className="relative p-8">
-              {/* Logo */}
+      <AnimatePresence>
+        {isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              {/* Backdrop */}
               <motion.div
-                key={mode}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="flex justify-center mb-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={handleClose}
+                  className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm"
+              />
+
+              {/* Modal */}
+              <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  transition={{ type: "spring", duration: 0.5 }}
+                  className="relative z-50 w-full max-w-md bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] shadow-[0_0_60px_rgba(0,255,157,0.1)] overflow-hidden"
               >
-                <div className="w-16 h-16 rounded-full bg-[#00FF9D] flex items-center justify-center shadow-[0_0_40px_rgba(0,255,157,0.4)]">
-                  <span className="text-3xl text-[#0F0F0F]">E</span>
-                </div>
-              </motion.div>
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#00FF9D]/5 to-transparent pointer-events-none" />
 
-              {/* Title */}
-              <motion.h2
-                key={`title-${mode}`}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center mb-2 text-[#E0E0E0]"
-              >
-                {mode === "login" ? "Вход в Echo" : "Регистрация в Echo"}
-              </motion.h2>
+                {/* Close button */}
+                <button
+                    onClick={handleClose}
+                    disabled={isLoading}
+                    className="absolute top-4 right-4 z-10 p-2 rounded-full bg-[#2A2A2A] text-[#888888] hover:text-[#00FF9D] hover:bg-[#333333] transition-all hover:shadow-[0_0_20px_rgba(0,255,157,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <X className="w-5 h-5" />
+                </button>
 
-              <p className="text-center mb-8 text-[#888888]">
-                {mode === "login"
-                  ? "Добро пожаловать обратно!"
-                  : "Создайте аккаунт и начните делиться"}
-              </p>
-
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <AnimatePresence mode="wait">
-                  {mode === "register" && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
+                {/* Content */}
+                <div className="relative p-8">
+                  {/* Logo */}
+                  <motion.div
+                      key={mode}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
                       transition={{ duration: 0.3 }}
-                    >
+                      className="flex justify-center mb-6"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-[#00FF9D] flex items-center justify-center shadow-[0_0_40px_rgba(0,255,157,0.4)]">
+                      <span className="text-3xl text-[#0F0F0F]">E</span>
+                    </div>
+                  </motion.div>
+
+                  {/* Title */}
+                  <motion.h2
+                      key={`title-${mode}`}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center mb-2 text-[#E0E0E0]"
+                  >
+                    {mode === "login" ? "Вход в Echo" : "Регистрация в Echo"}
+                  </motion.h2>
+
+                  <p className="text-center mb-8 text-[#888888]">
+                    {mode === "login"
+                        ? "Добро пожаловать обратно!"
+                        : "Создайте аккаунт и начните делиться"}
+                  </p>
+
+                  {/* Общая ошибка */}
+                  {submitError && (
+                      <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mb-4 p-3 bg-[#FF4757]/10 border border-[#FF4757]/30 rounded-lg"
+                      >
+                        <p className="text-sm text-[#FF4757] text-center">
+                          {submitError}
+                        </p>
+                      </motion.div>
+                  )}
+
+                  {/* Form */}
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <AnimatePresence mode="wait">
+                      {/* Поле имени для регистрации */}
+                      {mode === "register" && (
+                          <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className="space-y-4"
+                          >
+                            <div>
+                              <div className="relative">
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                                <input
+                                    type="text"
+                                    placeholder="Ваше имя"
+                                    value={formData.name}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, name: e.target.value })
+                                    }
+                                    disabled={isLoading}
+                                    className={`w-full pl-12 pr-4 py-3 bg-[#0F0F0F] border ${
+                                        errors.name ? "border-[#FF4757]" : "border-[#2A2A2A]"
+                                    } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                                />
+                              </div>
+                              {errors.name && (
+                                  <p className="mt-1 text-sm text-[#FF4757]">{errors.name}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="relative">
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                                <input
+                                    type="text"
+                                    placeholder="Имя пользователя (опционально)"
+                                    value={formData.username}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, username: e.target.value })
+                                    }
+                                    disabled={isLoading}
+                                    className={`w-full pl-12 pr-4 py-3 bg-[#0F0F0F] border ${
+                                        errors.username ? "border-[#FF4757]" : "border-[#2A2A2A]"
+                                    } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                                />
+                              </div>
+                              {errors.username && (
+                                  <p className="mt-1 text-sm text-[#FF4757]">{errors.username}</p>
+                              )}
+                            </div>
+                          </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Email поле */}
+                    <div>
                       <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
                         <input
-                          type="text"
-                          placeholder="Ваше имя"
-                          value={formData.name}
-                          onChange={(e) =>
-                            setFormData({ ...formData, name: e.target.value })
-                          }
-                          className={`w-full pl-12 pr-4 py-3 bg-[#0F0F0F] border ${
-                            errors.name ? "border-[#FF4757]" : "border-[#2A2A2A]"
-                          } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all`}
+                            type="email"
+                            placeholder="Email"
+                            value={formData.email}
+                            onChange={(e) =>
+                                setFormData({ ...formData, email: e.target.value })
+                            }
+                            disabled={isLoading}
+                            className={`w-full pl-12 pr-4 py-3 bg-[#0F0F0F] border ${
+                                errors.email ? "border-[#FF4757]" : "border-[#2A2A2A]"
+                            } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                         />
                       </div>
-                      {errors.name && (
-                        <p className="mt-1 text-sm text-[#FF4757]">{errors.name}</p>
+                      {errors.email && (
+                          <p className="mt-1 text-sm text-[#FF4757]">{errors.email}</p>
                       )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
 
-                <div>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      className={`w-full pl-12 pr-4 py-3 bg-[#0F0F0F] border ${
-                        errors.email ? "border-[#FF4757]" : "border-[#2A2A2A]"
-                      } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all`}
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-[#FF4757]">{errors.email}</p>
-                  )}
-                </div>
+                    {/* Пароль поле */}
+                    <div>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Пароль"
+                            value={formData.password}
+                            onChange={(e) =>
+                                setFormData({ ...formData, password: e.target.value })
+                            }
+                            disabled={isLoading}
+                            className={`w-full pl-12 pr-12 py-3 bg-[#0F0F0F] border ${
+                                errors.password ? "border-[#FF4757]" : "border-[#2A2A2A]"
+                            } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            disabled={isLoading}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888888] hover:text-[#00FF9D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {showPassword ? (
+                              <EyeOff className="w-5 h-5" />
+                          ) : (
+                              <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                      {errors.password && (
+                          <p className="mt-1 text-sm text-[#FF4757]">{errors.password}</p>
+                      )}
+                    </div>
 
-                <div>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Пароль"
-                      value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      className={`w-full pl-12 pr-12 py-3 bg-[#0F0F0F] border ${
-                        errors.password ? "border-[#FF4757]" : "border-[#2A2A2A]"
-                      } rounded-xl text-[#E0E0E0] placeholder:text-[#555555] focus:outline-none focus:border-[#00FF9D] focus:shadow-[0_0_20px_rgba(0,255,157,0.2)] transition-all`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888888] hover:text-[#00FF9D] transition-colors"
+                    {/* Submit Button */}
+                    <motion.button
+                        type="submit"
+                        disabled={isLoading}
+                        whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                        whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                        className="w-full py-3 bg-[#00FF9D] text-[#0F0F0F] rounded-xl hover:shadow-[0_0_30px_rgba(0,255,157,0.5)] transition-all mt-6 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                      {showPassword ? (
-                        <EyeOff className="w-5 h-5" />
+                      {isLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            {mode === "login" ? "Вход..." : "Регистрация..."}
+                          </>
                       ) : (
-                        <Eye className="w-5 h-5" />
+                          mode === "login" ? "Войти" : "Зарегистрироваться"
                       )}
-                    </button>
+                    </motion.button>
+                  </form>
+
+                  {/* Switch Mode */}
+                  <div className="mt-6 text-center">
+                    <p className="text-[#888888]">
+                      {mode === "login"
+                          ? "Ещё нет аккаунта?"
+                          : "Уже есть аккаунт?"}{" "}
+                      <button
+                          onClick={switchMode}
+                          disabled={isLoading}
+                          className="text-[#00FF9D] hover:underline transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {mode === "login" ? "Зарегистрироваться" : "Войти"}
+                      </button>
+                    </p>
                   </div>
-                  {errors.password && (
-                    <p className="mt-1 text-sm text-[#FF4757]">{errors.password}</p>
-                  )}
+
+                  {/* Информация о пароле */}
+                  <div className="mt-4 text-sm text-[#555555] text-center">
+                    <p>Пароль должен содержать минимум 6 символов</p>
+                  </div>
                 </div>
-
-                {/* Submit Button */}
-                <motion.button
-                  type="submit"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 bg-[#00FF9D] text-[#0F0F0F] rounded-xl hover:shadow-[0_0_30px_rgba(0,255,157,0.5)] transition-all mt-6"
-                >
-                  {mode === "login" ? "Войти" : "Зарегистрироваться"}
-                </motion.button>
-              </form>
-
-              {/* Switch Mode */}
-              <div className="mt-6 text-center">
-                <p className="text-[#888888]">
-                  {mode === "login"
-                    ? "Ещё нет аккаунта?"
-                    : "Уже есть аккаунт?"}{" "}
-                  <button
-                    onClick={switchMode}
-                    className="text-[#00FF9D] hover:underline transition-all"
-                  >
-                    {mode === "login" ? "Зарегистрироваться" : "Войти"}
-                  </button>
-                </p>
-              </div>
+              </motion.div>
             </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
   );
 }

@@ -23,8 +23,8 @@ export function LandingPage() {
     setIsAuthModalOpen(true);
   };
 
-  const handleLogin = (email: string, password: string) => {
-    const result = login(email, password);
+  const handleLogin = async (email: string, password: string) => {
+    const result = await login(email, password);
     if (result.success) {
       navigate("/feed");
     } else {
@@ -32,14 +32,15 @@ export function LandingPage() {
     }
   };
 
-  const handleRegister = (name: string, email: string, password: string) => {
-    const result = register(name, email, password);
+  const handleRegister = async (name: string, email: string, password: string) => {
+    const result = await register(name, email, password);
     if (result.success) {
       navigate("/feed");
     } else {
       setModalError(result.error || "Ошибка регистрации");
     }
   };
+
 
   return (
       <div className="min-h-screen bg-[#0F0F0F] relative overflow-hidden flex items-center justify-center">
@@ -77,22 +78,32 @@ export function LandingPage() {
           />
         </div>
 
+        <motion.button
+            whileHover={{scale: 1.05}}
+            whileTap={{scale: 0.95}}
+            onClick={() => navigate("/feed")}
+            className="absolute top-6 right-6 px-3 py-1 bg-transparent border-2 border-[#808080] text-[#808080] rounded-full  transition-all z-20 flex items-center text-sm"
+        >
+          Войти как гость
+        </motion.button>
+
         <div className="relative z-10 max-w-6xl mx-auto px-4 text-center">
           <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.8, type: "spring" }}
+              initial={{scale: 0, rotate: -180}}
+              animate={{scale: 1, rotate: 0}}
+              transition={{duration: 0.8, type: "spring"}}
               className="inline-block mb-8"
           >
-            <div className="w-24 h-24 rounded-full bg-[#00FF9D] flex items-center justify-center shadow-[0_0_60px_rgba(0,255,157,0.5)]">
+            <div
+                className="w-24 h-24 rounded-full bg-[#00FF9D] flex items-center justify-center shadow-[0_0_60px_rgba(0,255,157,0.5)]">
               <span className="text-5xl font-bold text-[#0F0F0F]">E</span>
             </div>
           </motion.div>
 
           <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+              initial={{opacity: 0, y: 20}}
+              animate={{opacity: 1, y: 0}}
+              transition={{delay: 0.3}}
               className="mb-4 text-6xl font-bold text-[#E0E0E0]"
           >
             Добро пожаловать в{" "}
@@ -100,9 +111,9 @@ export function LandingPage() {
           </motion.h1>
 
           <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
+              initial={{opacity: 0, y: 20}}
+              animate={{opacity: 1, y: 0}}
+              transition={{delay: 0.5}}
               className="mb-12 text-xl text-[#888888] max-w-2xl mx-auto"
           >
             Минималистичная платформа для создания и обмена визуальными историями.
@@ -110,40 +121,30 @@ export function LandingPage() {
           </motion.p>
 
           <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
+              initial={{opacity: 0, y: 20}}
+              animate={{opacity: 1, y: 0}}
+              transition={{delay: 0.7}}
               className="flex gap-4 justify-center flex-wrap"
           >
             <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{scale: 1.05}}
+                whileTap={{scale: 0.95}}
                 onClick={handleOpenLogin}
                 className="px-8 py-4 bg-[#00FF9D] text-[#0F0F0F] rounded-full hover:shadow-[0_0_40px_rgba(0,255,157,0.6)] transition-all font-semibold text-lg"
             >
               Войти
             </motion.button>
             <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{scale: 1.05}}
+                whileTap={{scale: 0.95}}
                 onClick={handleOpenRegister}
                 className="px-8 py-4 bg-transparent border-2 border-[#00FF9D] text-[#00FF9D] rounded-full hover:bg-[#00FF9D] hover:text-[#0F0F0F] transition-all font-semibold text-lg"
             >
               Зарегистрироваться
             </motion.button>
           </motion.div>
-
-          {/* Demo credentials hint */}
-          <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="mt-12 text-gray-500 text-sm"
-          >
-            <p>Для демонстрации используйте тестовые данные:</p>
-            <p className="text-gray-400 mt-1">test@echo.com / password123</p>
-          </motion.div>
         </div>
+
 
         <AuthModal
             isOpen={isAuthModalOpen}
@@ -159,9 +160,9 @@ export function LandingPage() {
         {/* Modal Error Display (outside modal) */}
         {modalError && !isAuthModalOpen && (
             <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                initial={{opacity: 0, y: -20}}
+                animate={{opacity: 1, y: 0}}
+                exit={{opacity: 0, y: -20}}
                 className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 bg-red-500/10 border border-red-500/30 rounded-full backdrop-blur-sm"
             >
               <p className="text-red-400 text-sm">{modalError}</p>

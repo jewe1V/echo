@@ -1,41 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { type Post, PostCard } from "./PostCard.tsx";
-
-interface ProfilePageProps {
-  onBack: () => void;
-  posts: Post[];
-  onLike: (postId: string) => void;
-  onBookmark: (postId: string) => void;
-  onEdit: (postId: string) => void;
-  onDelete: (postId: string) => void;
-  onComment: (postId: string, comment: string) => void;
-}
+import { PostCard } from "./PostCard.tsx";
 
 type Tab = "posts" | "bookmarks" | "likes";
 
-export function ProfilePage({
-  onBack,
-  posts,
-  onLike,
-  onBookmark,
-  onEdit,
-  onDelete,
-  onComment,
-}: ProfilePageProps) {
+export function ProfilePage() {
   const [activeTab, setActiveTab] = useState<Tab>("posts");
-
-  // Фильтруем посты для текущего пользователя
-  const userPosts = posts.filter((post) => post.isOwner);
-  const bookmarkedPosts = posts.filter((post) => post.isBookmarked);
-  const likedPosts = posts.filter((post) => post.isLiked);
-
-  const currentPosts =
-    activeTab === "posts"
-      ? userPosts
-      : activeTab === "bookmarks"
-      ? bookmarkedPosts
-      : likedPosts;
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] pt-20">

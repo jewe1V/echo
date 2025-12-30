@@ -6,39 +6,64 @@ import { type Post } from "../types";
 import {usePosts} from "../hooks/usePosts.ts";
 import { useAuth } from "../hooks/useAuth.ts";
 import {useState} from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthModal } from "./AuthModal.tsx";
 
-interface FeedPageProps {
-    onLogout: () => void;
-}
 
-export function FeedPage({ onLogout }: FeedPageProps) {
-    const { currentUser } = useAuth();
-    const { posts, isLoading, likePost, bookmarkPost, createPost, updatePost, deletePost, addComment } = usePosts(currentUser?.id);
+export function FeedPage() {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [modalError, setModalError] = useState<string | null>(null);
+
+
+    const { currentUser, logout, login, register } = useAuth();
+    const { posts, isLoading, likePost, bookmarkPost, createPost, updatePost, deletePost, addComment } = usePosts();
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | undefined>(undefined);
+    const navigate = useNavigate();
 
     const handleCreatePost = (postData: { title: string; content: string; image?: string }) => {
         if (!currentUser) return;
-
-        createPost(postData, {
-            id: currentUser.id,
-            name: currentUser.name,
-            avatar: currentUser.avatar,
-        });
+        createPost(postData);
     };
 
     const handleEditPost = (postId: string) => {
-        const post = posts.find((p) => p.id === postId);
+        const post = posts.find((p) => p.post_id === postId || p.id === postId);
         if (post) {
             setEditingPost(post);
             setIsCreateModalOpen(true);
         }
     };
 
+
+  const handleLogin = async (email: string, password: string) => {
+    const result = await login(email, password);
+    if (result.success) {
+      navigate("/feed");
+    } else {
+      setModalError(result.error || "Ошибка входа");
+    }
+  };
+
+  const handleRegister = async (name: string, email: string, password: string) => {
+    const result = await register(name, email, password);
+    if (result.success) {
+      navigate("/feed");
+    } else {
+      setModalError(result.error || "Ошибка регистрации");
+    }
+  };
+
+  const handleOpenLogin = () => {
+    setModalError(null);
+    setAuthMode("login");
+    setIsAuthModalOpen(true);
+  };
+
     const handleUpdatePost = (postData: { title: string; content: string; image?: string }) => {
         if (editingPost) {
-            updatePost(editingPost.id, {
+            updatePost(editingPost.post_id || editingPost.id, {
                 title: postData.title,
                 content: postData.content,
                 image: postData.image,
@@ -54,9 +79,12 @@ export function FeedPage({ onLogout }: FeedPageProps) {
                     setEditingPost(undefined);
                     setIsCreateModalOpen(true);
                 }}
-                onLogout={onLogout}
+                onProfileClick={() => navigate("/profile")}
+                onLogout={() => logout()}
+                onLogin={() => handleOpenLogin()}
                 userName={currentUser?.name || "User"}
-                userAvatar={currentUser?.avatar || ""}
+                userEmail={currentUser?.email || ""}
+                isAuthenticated={!!currentUser}
             />
 
             <main className="pt-24 pb-8">
@@ -113,14 +141,36 @@ export function FeedPage({ onLogout }: FeedPageProps) {
                 editPost={
                     editingPost
                         ? {
-                            id: editingPost.id,
+                            id: editingPost.post_id || editingPost.id,
                             title: editingPost.title,
-                            content: editingPost.content,
-                            image: editingPost.image,
+                            content: editingPost.text || editingPost.content,
+                            image: editingPost.imgUrl || editingPost.image,
                         }
                         : undefined
                 }
             />
+            <AuthModal
+                isOpen={isAuthModalOpen}
+                onClose={() => {
+                    setIsAuthModalOpen(false);
+                    setModalError(null);
+                }}
+                onLogin={handleLogin}
+                onRegister={handleRegister}
+                initialMode={authMode}
+            />
+    
+            {/* Modal Error Display (outside modal) */}
+            {modalError && !isAuthModalOpen && (
+                <motion.div
+                    initial={{opacity: 0, y: -20}}
+                    animate={{opacity: 1, y: 0}}
+                    exit={{opacity: 0, y: -20}}
+                    className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 bg-red-500/10 border border-red-500/30 rounded-full backdrop-blur-sm"
+                >
+                    <p className="text-red-400 text-sm">{modalError}</p>
+                </motion.div>
+            )}
         </div>
     );
 }
