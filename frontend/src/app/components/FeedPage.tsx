@@ -158,8 +158,7 @@ export function FeedPage() {
                 onLogin={handleLogin}
                 onRegister={handleRegister}
             />
-    
-            {/* Modal Error Display (outside modal) */}
+
             {modalError && !isAuthModalOpen && (
                 <motion.div
                     initial={{opacity: 0, y: -20}}

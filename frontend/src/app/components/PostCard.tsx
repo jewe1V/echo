@@ -61,6 +61,7 @@ export function PostCard({
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => setShowMenu(!showMenu)}
                                 className="p-2 rounded-full hover:bg-[#2A2A2A] text-[#888888]"
+                                aria-label="Открыть меню поста"
                             >
                                 <EllipsisVertical className="w-5 h-5" />
                             </motion.button>
@@ -113,7 +114,14 @@ export function PostCard({
                 </div>
 
                 <div className="px-4 pb-4 flex items-center gap-6">
-                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onLike(post.id)} className="flex items-center gap-2 group">
+                    {/* Лайк */}
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => onLike(post.id)}
+                        className="flex items-center gap-2 group"
+                        aria-label={post.isLiked ? "Убрать лайк" : "Поставить лайк"}
+                    >
                         <motion.div animate={post.isLiked ? { scale: [1, 1.3, 1] } : {}}>
                             <Heart className={`w-5 h-5 transition-colors ${post.isLiked ? "fill-[#00FF9D] text-[#00FF9D]" : "text-[#888888] group-hover:text-[#00FF9D]"}`} />
                         </motion.div>
