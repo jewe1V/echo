@@ -13,7 +13,6 @@ class DecimalEncoder(json.JSONEncoder):
         return super().default(obj)
 
 def get_comments_for_posts(dynamodb, post_ids, limit_per_post=5):
-    """Получаем комментарии для списка постов"""
     if not post_ids:
         return {}
 
@@ -21,18 +20,16 @@ def get_comments_for_posts(dynamodb, post_ids, limit_per_post=5):
     comments_by_post = {}
 
     try:
-        # Получаем комментарии для всех постов
         for post_id in post_ids:
             response = comments_table.query(
                 IndexName='idx_comments_post',
                 KeyConditionExpression='post_id = :post_id',
                 ExpressionAttributeValues={':post_id': post_id},
                 Limit=limit_per_post,
-                ScanIndexForward=False  # Сначала новые комментарии
+                ScanIndexForward=False
             )
             comments_by_post[post_id] = response.get('Items', [])
 
-            # Получаем количество всех комментариев для поста
             count_response = comments_table.query(
                 IndexName='idx_comments_post',
                 KeyConditionExpression='post_id = :post_id',
@@ -47,7 +44,6 @@ def get_comments_for_posts(dynamodb, post_ids, limit_per_post=5):
     return comments_by_post
 
 def get_likes_info_for_posts(dynamodb, post_ids, user_id=None):
-    """Получаем информацию о лайках для постов"""
     if not post_ids:
         return {}, {}
 
@@ -56,9 +52,7 @@ def get_likes_info_for_posts(dynamodb, post_ids, user_id=None):
     user_likes = set()
 
     try:
-        # Получаем количество лайков для каждого поста
         for post_id in post_ids:
-            # Используем индекс idx_post для подсчета лайков
             response = likes_table.query(
                 KeyConditionExpression='post_id = :post_id',
                 ExpressionAttributeValues={':post_id': post_id},
@@ -66,7 +60,6 @@ def get_likes_info_for_posts(dynamodb, post_ids, user_id=None):
             )
             likes_by_post[post_id] = response.get('Count', 0)
 
-        # Если пользователь авторизован, проверяем его лайки
         if user_id:
             response = likes_table.query(
                 IndexName='idx_user',
@@ -81,25 +74,20 @@ def get_likes_info_for_posts(dynamodb, post_ids, user_id=None):
     return likes_by_post, user_likes
 
 def get_author_info(dynamodb, author_ids):
-    """Получаем информацию об авторах"""
     if not author_ids:
         return {}
 
     users_table = dynamodb.Table('users')
     authors_by_id = {}
-
-    # Убираем дубликаты
     unique_author_ids = list(set(author_ids))
 
     try:
-        # Получаем информацию об авторах
         for author_id in unique_author_ids:
             response = users_table.get_item(
                 Key={'user_id': author_id}
             )
             if 'Item' in response:
                 user = response['Item']
-                # Возвращаем только нужные поля
                 authors_by_id[author_id] = {
                     'user_id': user.get('user_id'),
                     'username': user.get('username'),
@@ -112,7 +100,6 @@ def get_author_info(dynamodb, author_ids):
     return authors_by_id
 
 def handler(event, context):
-    # Прямое подключение к YDB
     dynamodb = boto3.resource(
         'dynamodb',
         endpoint_url=os.environ['YDB_ENDPOINT'],
@@ -124,27 +111,16 @@ def handler(event, context):
     posts_table = dynamodb.Table('posts')
 
     try:
-        # Получаем параметры запроса
         query_params = event.get('queryStringParameters', {}) or {}
         headers = event.get('headers', {})
 
-        # Основные параметры
         author_id = query_params.get('author_id')
         limit = min(int(query_params.get('limit', 20)), 100)
         status = query_params.get('status', 'published')
         include_comments = query_params.get('include_comments', 'true').lower() == 'true'
-        comments_limit = int(query_params.get('comments_limit', 3))  # Кол-во комментариев на пост
+        comments_limit = int(query_params.get('comments_limit', 3)) 
         include_author = query_params.get('include_author', 'true').lower() == 'true'
-
-        # Получаем user_id из токена (если есть)
         user_id = None
-        auth_header = headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            # Здесь можно распарсить JWT токен для получения user_id
-            # Пока оставляем заглушку
-            pass
-
-        # Обработка ключа пагинации
         last_key = None
         last_key_str = query_params.get('last_key')
         if last_key_str:
@@ -152,10 +128,7 @@ def handler(event, context):
                 last_key = json.loads(last_key_str)
             except:
                 pass
-
-        # Получаем посты
         if author_id:
-            # Посты конкретного автора
             query_kwargs = {
                 'IndexName': 'idx_author',
                 'KeyConditionExpression': 'author_id = :author_id',
@@ -175,7 +148,6 @@ def handler(event, context):
 
             response = posts_table.query(**query_kwargs)
         else:
-            # Все посты
             scan_kwargs = {
                 'Limit': limit,
                 'FilterExpression': '#status = :status',
@@ -194,11 +166,9 @@ def handler(event, context):
 
         posts = response.get('Items', [])
 
-        # Подготавливаем дополнительные данные
         post_ids = [post['post_id'] for post in posts]
         author_ids = list(set([post['author_id'] for post in posts]))
 
-        # Получаем дополнительные данные если нужно
         comments_by_post = {}
         likes_by_post = {}
         user_likes = set()
@@ -213,21 +183,17 @@ def handler(event, context):
             if include_author:
                 authors_by_id = get_author_info(dynamodb, author_ids)
 
-        # Обогащаем посты дополнительными данными
         enriched_posts = []
         for post in posts:
             enriched_post = post.copy()
 
-            # Добавляем комментарии
             if include_comments:
                 enriched_post['recent_comments'] = comments_by_post.get(post['post_id'], [])
                 enriched_post['comments_count'] = comments_by_post.get(post['post_id'] + '_total', 0)
 
-            # Добавляем информацию о лайках
             enriched_post['likes_count'] = likes_by_post.get(post['post_id'], 0)
             enriched_post['is_liked'] = post['post_id'] in user_likes
 
-            # Добавляем информацию об авторе
             if include_author:
                 enriched_post['author_info'] = authors_by_id.get(post['author_id'], {
                     'user_id': post['author_id'],
@@ -237,7 +203,6 @@ def handler(event, context):
 
             enriched_posts.append(enriched_post)
 
-        # Формируем метаданные для пагинации
         last_evaluated_key = response.get('LastEvaluatedKey')
 
         response_data = {

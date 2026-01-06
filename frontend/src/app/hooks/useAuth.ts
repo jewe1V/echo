@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { type User } from "../types";
-
-const API_BASE_URL = "https://d5dokul9oqi12k1uin8p.trruwy79.apigw.yandexcloud.net";
+import {API_URL} from "../apiUrl"
 
 export const useAuth = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -9,24 +8,6 @@ export const useAuth = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Загружаем пользователя и токен из localStorage при монтировании
-    useEffect(() => {
-        const storedUser = localStorage.getItem("echo_current_user");
-        const storedToken = localStorage.getItem("echo_auth_token");
-
-        if (storedUser && storedToken) {
-            try {
-                setCurrentUser(JSON.parse(storedUser));
-                setAuthToken(storedToken);
-            } catch (err) {
-                console.error("Ошибка парсинга сохраненных данных:", err);
-                clearStoredAuth();
-            }
-        }
-        setIsLoading(false);
-    }, []);
-
-    // Очистка сохраненных данных авторизации
     const clearStoredAuth = () => {
         localStorage.removeItem("echo_current_user");
         localStorage.removeItem("echo_auth_token");
@@ -35,27 +16,54 @@ export const useAuth = () => {
         setError(null);
     };
 
-    // Валидация email
+    useEffect(() => {
+        const storedUser = localStorage.getItem("echo_current_user");
+        const storedToken = localStorage.getItem("echo_auth_token");
+
+        let isValid = false;
+        let parsedUser: User | null = null;
+        if (storedUser && storedToken) {
+            try {
+                parsedUser = JSON.parse(storedUser);
+                isValid = true;
+            } catch (err) {
+                console.error("Ошибка парсинга сохраненных данных:", err);
+                localStorage.removeItem("echo_current_user");
+                localStorage.removeItem("echo_auth_token");
+            }
+        }
+        if (isValid && parsedUser) {
+            setTimeout(() => {
+                setCurrentUser(parsedUser);
+                setAuthToken(storedToken);
+                setIsLoading(false);
+            }, 0);
+        } else {
+            setTimeout(() => {
+                setIsLoading(false);
+            }, 0);
+        }
+    }, []);
+
+
     const validateEmail = (email: string): boolean => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     };
 
-    // Общая функция для API запросов
     const apiRequest = async <T>(
         endpoint: string,
         method: string = "GET",
-        data?: any,
+        data?: unknown,
         requireAuth: boolean = false
     ): Promise<{ success: boolean; data?: T; error?: string }> => {
         setError(null);
 
-        // Проверка авторизации если требуется
         if (requireAuth && !authToken) {
             return { success: false, error: "Требуется авторизация" };
         }
 
-        const url = `${API_BASE_URL}${endpoint}`;
+        const url = `${API_URL}${endpoint}`;
         const headers: HeadersInit = {
             "Content-Type": "application/json",
         };
@@ -74,7 +82,6 @@ export const useAuth = () => {
             const responseData = await response.json();
 
             if (!response.ok) {
-                // Обработка специфичных ошибок
                 if (response.status === 401) {
                     clearStoredAuth();
                     return {
@@ -100,12 +107,10 @@ export const useAuth = () => {
         }
     };
 
-    // Логин через API
     const login = async (
         email: string,
         password: string
     ): Promise<{ success: boolean; error?: string }> => {
-        // Валидация полей
         if (!email.trim() || !password.trim()) {
             return { success: false, error: "Заполните все поля" };
         }
@@ -136,7 +141,6 @@ export const useAuth = () => {
             if (result.success && result.data) {
                 const { token, user } = result.data;
 
-                // Преобразуем ответ API в формат User
                 const transformedUser: User = {
                     id: user.user_id,
                     name: user.display_name || user.username || user.email.split('@')[0],
@@ -145,7 +149,6 @@ export const useAuth = () => {
                     displayName: user.display_name,
                 };
 
-                // Сохраняем токен и пользователя
                 setAuthToken(token);
                 setCurrentUser(transformedUser);
 
@@ -159,7 +162,7 @@ export const useAuth = () => {
                 success: false,
                 error: result.error || "Неверный email или пароль",
             };
-        } catch (err) {
+        } catch {
             setIsLoading(false);
             return {
                 success: false,
@@ -168,14 +171,12 @@ export const useAuth = () => {
         }
     };
 
-    // Регистрация через API
     const register = async (
         name: string,
         email: string,
         password: string,
         username?: string
     ): Promise<{ success: boolean; error?: string }> => {
-        // Валидация полей
         if (!name.trim() || !email.trim() || !password.trim()) {
             return { success: false, error: "Заполните все поля" };
         }
@@ -216,7 +217,6 @@ export const useAuth = () => {
             if (result.success && result.data) {
                 const { token, user } = result.data;
 
-                // Преобразуем ответ API в формат User
                 const transformedUser: User = {
                     id: user.user_id,
                     name: user.display_name || user.username || name.trim(),
@@ -225,7 +225,6 @@ export const useAuth = () => {
                     displayName: user.display_name,
                 };
 
-                // Сохраняем токен и пользователя
                 setAuthToken(token);
                 setCurrentUser(transformedUser);
 
@@ -239,7 +238,7 @@ export const useAuth = () => {
                 success: false,
                 error: result.error || "Ошибка при регистрации",
             };
-        } catch (err) {
+        } catch {
             setIsLoading(false);
             return {
                 success: false,
@@ -248,44 +247,33 @@ export const useAuth = () => {
         }
     };
 
-    // Выход
     const logout = () => {
         clearStoredAuth();
     };
 
-    // Обновление профиля (если API поддерживает)
     const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
         if (!currentUser || !authToken) return false;
-
-        // TODO: Реализовать при наличии соответствующего endpoint в API
         console.log("Обновление профиля:", updates);
         return false;
     };
 
-    // Проверка валидности токена
     const validateToken = async (): Promise<boolean> => {
         if (!authToken) return false;
-
-        // Проверяем, есть ли токен и пользователь в localStorage
         const storedToken = localStorage.getItem("echo_auth_token");
         const storedUser = localStorage.getItem("echo_current_user");
 
         return !!(storedToken && storedUser);
     };
 
-    // Сброс ошибки
     const clearError = () => {
         setError(null);
     };
 
     return {
-        // Состояние
         currentUser,
         authToken,
         isLoading,
         error,
-
-        // Методы
         login,
         register,
         logout,

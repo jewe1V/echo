@@ -17,7 +17,7 @@ export function FeedPage() {
 
 
     const { currentUser, logout, login, register } = useAuth();
-    const { posts, isLoading, likePost, bookmarkPost, createPost, updatePost, deletePost, addComment } = usePosts();
+    const { posts, isLoading, likePost, createPost, updatePost, deletePost, addComment } = usePosts();
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | undefined>(undefined);
@@ -29,7 +29,7 @@ export function FeedPage() {
     };
 
     const handleEditPost = (postId: string) => {
-        const post = posts.find((p) => p.post_id === postId || p.id === postId);
+        const post = posts.find((p) => p.id === postId);
         if (post) {
             setEditingPost(post);
             setIsCreateModalOpen(true);
@@ -63,7 +63,7 @@ export function FeedPage() {
 
     const handleUpdatePost = (postData: { title: string; content: string; image?: string }) => {
         if (editingPost) {
-            updatePost(editingPost.post_id || editingPost.id, {
+            updatePost(editingPost.id, {
                 title: postData.title,
                 content: postData.content,
                 image: postData.image,
@@ -105,15 +105,15 @@ export function FeedPage() {
                             <h3 className="text-xl font-medium text-gray-400 mb-4">
                                 Лента пуста
                             </h3>
-                            <p className="text-gray-500 mb-8">
-                                Будьте первым, кто поделится чем-то интересным!
-                            </p>
-                            <button
+                            { currentUser?(<button
                                 onClick={() => setIsCreateModalOpen(true)}
                                 className="btn-primary"
-                            >
+                            > 
                                 Создать первый пост
-                            </button>
+                            </button>) : (<p className="text-gray-500 mb-8">
+                                Зарегистрируйтесь и поделитесь чем-то интересным!
+                            </p>)
+                             }
                         </div>
                     ) : (
                         posts.map((post) => (
@@ -121,7 +121,6 @@ export function FeedPage() {
                                 key={post.id}
                                 post={post}
                                 onLike={likePost}
-                                onBookmark={bookmarkPost}
                                 onEdit={post.isOwner ? handleEditPost : undefined}
                                 onDelete={post.isOwner ? deletePost : undefined}
                                 onComment={addComment}
@@ -141,10 +140,10 @@ export function FeedPage() {
                 editPost={
                     editingPost
                         ? {
-                            id: editingPost.post_id || editingPost.id,
+                            id: editingPost.id,
                             title: editingPost.title,
-                            content: editingPost.text || editingPost.content,
-                            image: editingPost.imgUrl || editingPost.image,
+                            content: editingPost.content,
+                            image: editingPost.image,
                         }
                         : undefined
                 }
@@ -155,9 +154,9 @@ export function FeedPage() {
                     setIsAuthModalOpen(false);
                     setModalError(null);
                 }}
+                initialMode={authMode}
                 onLogin={handleLogin}
                 onRegister={handleRegister}
-                initialMode={authMode}
             />
     
             {/* Modal Error Display (outside modal) */}

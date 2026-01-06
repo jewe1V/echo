@@ -4,49 +4,50 @@ import { useState, useEffect, useCallback } from "react";
 import { type Post, type Author } from "../types";
 import { useAuth } from "./useAuth";
 
-const normalizePost = (apiPost: any, currentUserId?: string): Post => {
+type ApiPost = {
+    post_id?: string;
+    id?: string;
+    author_info?: {
+        user_id?: string;
+        username?: string;
+        display_name?: string;
+        avatar_url?: string;
+    };
+    author_id?: string;
+    title?: string;
+    text?: string;
+    imgUrl?: string;
+    imageUrl?: string;
+    created_at?: string;
+    updated_at?: string;
+    likes_count?: number;
+    is_liked?: boolean;
+    comments_count?: number;
+    status?: string;
+    slug?: string;
+};
+
+const normalizePost = (apiPost: ApiPost, currentUserId?: string): Post => {
     const author: Author = {
         id: apiPost.author_info?.user_id || apiPost.author_id || "unknown",
         username: apiPost.author_info?.username || "unknown",
         name: apiPost.author_info?.display_name || apiPost.author_info?.username || "Аноним",
-        avatar:
-            apiPost.author_info?.avatar_url ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                apiPost.author_info?.username || "user"
-            )}`,
+        avatar: "",
     };
 
-    const recentComments = (apiPost.recent_comments || []).map((c: any) => ({
-        id: c.comment_id || c.id || `temp-${Math.random()}`,
-        author: {
-            id: c.user_id || c.author_info?.user_id || "unknown",
-            username: c.author_info?.username || "Аноним",
-            name: c.author_info?.display_name || c.author_info?.username || "Аноним",
-            avatar:
-                c.author_info?.avatar_url ||
-                `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                    c.author_info?.username || "user"
-                )}`,
-        },
-        content: c.text || "",
-        createdAt: new Date(c.created_at || Date.now()),
-    }));
-
     return {
-        id: apiPost.post_id || apiPost.id,
+        id: String(apiPost.post_id || apiPost.id || ""),
         author,
         title: apiPost.title || "Без заголовка",
         content: apiPost.text || "",
-        image: apiPost.imgUrl || apiPost.imageUrl || undefined,
+        image: undefined,
         createdAt: new Date(apiPost.created_at || Date.now()),
         updatedAt: apiPost.updated_at ? new Date(apiPost.updated_at) : undefined,
         likes: apiPost.likes_count || 0,
         isLiked: apiPost.is_liked || false,
         commentsCount: apiPost.comments_count || 0,
-        views: apiPost.views_count || 0,
-        isBookmarked: false,
         isOwner: currentUserId ? apiPost.author_id === currentUserId : false,
-        recentComments,
+        recentComments: [],
         status: apiPost.status,
         slug: apiPost.slug,
     };
@@ -71,7 +72,6 @@ export const usePosts = () => {
             },
             append: boolean = false
         ) => {
-            // Предотвращаем множественные параллельные запросы при пагинации
             if (isLoading && append) return;
 
             setIsLoading(true);
@@ -87,18 +87,23 @@ export const usePosts = () => {
                 }
 
                 const endpoint = `/posts${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-                const result = await apiRequest<any>(endpoint, "GET");
+                const result = await apiRequest<unknown>(endpoint, "GET");
 
                 if (result.success) {
-                    // Гибкая обработка разных структур ответа
-                    let rawPosts: any[] = [];
-
-                    if (Array.isArray(result.data)) {
-                        rawPosts = result.data;
-                    } else if (result.data?.data && Array.isArray(result.data.data)) {
-                        rawPosts = result.data.data;
-                    } else if (Array.isArray(result.posts)) {
-                        rawPosts = result.posts;
+                    let rawPosts: ApiPost[] = [];
+                    let meta: { has_more?: boolean; next_key?: string } = {};
+                    if (
+                        result.data &&
+                        typeof result.data === "object" &&
+                        "data" in result.data &&
+                        Array.isArray((result.data as { data: unknown }).data)
+                    ) {
+                        rawPosts = ((result.data as { data: unknown }).data as ApiPost[]);
+                        if ("meta" in result.data && typeof (result.data as { meta?: unknown }).meta === "object") {
+                            meta = (result.data as { meta?: unknown }).meta as { has_more?: boolean; next_key?: string };
+                        }
+                    } else if (Array.isArray(result.data)) {
+                        rawPosts = result.data as ApiPost[];
                     } else {
                         console.warn("Неизвестная структура постов в ответе:", result);
                         rawPosts = [];
@@ -112,8 +117,6 @@ export const usePosts = () => {
                         setPosts(normalizedPosts);
                     }
 
-                    // Ищем meta в разных местах
-                    const meta = result.meta || result.data?.meta || {};
                     setHasMore(meta.has_more ?? false);
                     setNextKey(meta.next_key ?? null);
                 } else {
@@ -131,11 +134,9 @@ export const usePosts = () => {
         [apiRequest, currentUser?.id, isLoading]
     );
 
-    // Загружаем посты только один раз при монтировании хука
     useEffect(() => {
         fetchPosts({ limit: 20, include_comments: true });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Пустой массив — важно!
+    }, []);
 
     const loadMorePosts = useCallback(async () => {
         if (!hasMore || isLoading || !nextKey) return;
@@ -156,23 +157,23 @@ export const usePosts = () => {
                 return false;
             }
             try {
-                const res = await apiRequest<{ action: "liked" | "unliked" }>(`/posts/${postId}/like`, "POST");
-                if (res.success && res.data) {
+                const res = await apiRequest<{ action?: "liked" | "unliked" }>(`/posts/${postId}/like`, "POST");
+                if (res.success && res.data && typeof res.data.action !== "undefined") {
                     setPosts((prev) =>
                         prev.map((p) =>
                             p.id === postId
                                 ? {
                                       ...p,
-                                      isLiked: res.data.action === "liked",
+                                      isLiked: res.data!.action === "liked",
                                       likes:
-                                          res.data.action === "liked" ? p.likes + 1 : Math.max(0, p.likes - 1),
+                                          res.data!.action === "liked" ? p.likes + 1 : Math.max(0, p.likes - 1),
                                   }
                                 : p
                         )
                     );
                     return true;
                 }
-            } catch (err) {
+            } catch {
                 setError("Ошибка при лайке");
             }
             return false;
@@ -180,11 +181,6 @@ export const usePosts = () => {
         [authToken, apiRequest]
     );
 
-    const bookmarkPost = useCallback((postId: string) => {
-        setPosts((prev) =>
-            prev.map((p) => (p.id === postId ? { ...p, isBookmarked: !p.isBookmarked } : p))
-        );
-    }, []);
 
     const createPost = useCallback(
         async (data: {
@@ -198,7 +194,7 @@ export const usePosts = () => {
                 return { success: false, error: "Заполните заголовок и текст" };
 
             try {
-                const res = await apiRequest<{ post?: any }>("/posts/create", "POST", {
+                const res = await apiRequest<{ post?: ApiPost }>("/posts/create", "POST", {
                     title: data.title.trim(),
                     text: data.content.trim(),
                     imgUrl: data.image || "",
@@ -211,7 +207,7 @@ export const usePosts = () => {
                     return { success: true, post: newPost };
                 }
                 return { success: false, error: res.error || "Ошибка создания поста" };
-            } catch (err) {
+            } catch {
                 return { success: false, error: "Ошибка соединения" };
             }
         },
@@ -226,7 +222,7 @@ export const usePosts = () => {
             if (!authToken) return { success: false, error: "Требуется авторизация" };
 
             try {
-                const res = await apiRequest<{ post?: any }>(`/posts/${postId}/edit`, "PUT", {
+                const res = await apiRequest<{ post?: ApiPost }>(`/posts/${postId}/edit`, "PUT", {
                     ...updates,
                     post_id: postId,
                 });
@@ -237,7 +233,6 @@ export const usePosts = () => {
                         setPosts((prev) => prev.map((p) => (p.id === postId ? updated : p)));
                         return { success: true, updatedPost: updated };
                     } else {
-                        // Локальное обновление, если сервер не вернул пост
                         setPosts((prev) =>
                             prev.map((p) =>
                                 p.id === postId
@@ -255,7 +250,7 @@ export const usePosts = () => {
                     }
                 }
                 return { success: false, error: res.error || "Ошибка обновления" };
-            } catch (err) {
+            } catch {
                 return { success: false, error: "Ошибка соединения" };
             }
         },
@@ -273,7 +268,7 @@ export const usePosts = () => {
                     return { success: true };
                 }
                 return { success: false, error: res.error || "Ошибка удаления" };
-            } catch (err) {
+            } catch {
                 return { success: false, error: "Ошибка соединения" };
             }
         },
@@ -300,7 +295,7 @@ export const usePosts = () => {
                     return { success: true };
                 }
                 return { success: false, error: res.error || "Ошибка добавления комментария" };
-            } catch (err) {
+            } catch {
                 return { success: false, error: "Ошибка соединения" };
             }
         },
@@ -316,11 +311,9 @@ export const usePosts = () => {
         hasMore,
         nextKey,
 
-        // Методы
         fetchPosts,
         loadMorePosts,
         likePost,
-        bookmarkPost,
         createPost,
         updatePost,
         deletePost,

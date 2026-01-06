@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -7,8 +8,8 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: "login" | "register";
-  onLogin?: (email: string, password: string) => Promise<{ success?: boolean; error?: string }> | void;
-  onRegister?: (name: string, email: string, password: string) => Promise<{ success?: boolean; error?: string }> | void;
+  onLogin?: (email: string, password: string) => void;
+  onRegister?: (name: string, email: string, password: string) => void;
 }
 
 export function AuthModal({
@@ -38,7 +39,6 @@ export function AuthModal({
     clearError
   } = useAuth();
 
-  // Сброс при изменении initialMode
   useEffect(() => {
     setMode(initialMode);
     setFormData({ name: "", email: "", password: "", username: "" });
@@ -47,7 +47,6 @@ export function AuthModal({
     clearError();
   }, [initialMode]);
 
-  // Обработка ошибок из хука useAuth
   useEffect(() => {
     if (authError) {
       setSubmitError(authError);
@@ -63,7 +62,6 @@ export function AuthModal({
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
-    // Валидация для регистрации
     if (mode === "register") {
       if (!formData.name.trim()) {
         newErrors.name = "Имя обязательно";
@@ -79,7 +77,6 @@ export function AuthModal({
       }
     }
 
-    // Валидация email
     if (!formData.email.trim()) {
       newErrors.email = "Email обязателен";
       isValid = false;
@@ -88,7 +85,6 @@ export function AuthModal({
       isValid = false;
     }
 
-    // Валидация пароля
     if (!formData.password) {
       newErrors.password = "Пароль обязателен";
       isValid = false;
@@ -129,33 +125,23 @@ export function AuthModal({
       }
 
       if (result.success) {
-        // Успешная авторизация/регистрация
         const completedForm = { ...formData };
         setFormData({ name: "", email: "", password: "", username: "" });
         setErrors({});
         setShowPassword(false);
-        onClose(); // Закрываем модальное окно
-
-        // Если родитель передал коллбэки — вызовем их (например, чтобы выполнить навигацию)
+        
         try {
           if (mode === "login" && onLogin) {
-            const res = await onLogin(completedForm.email, completedForm.password);
-            if (res && typeof res === "object" && "success" in res && !(res as any).success) {
-              setSubmitError((res as any).error || "Произошла ошибка");
-            }
+            await onLogin(completedForm.email, completedForm.password);
+          } else if (mode === "register" && onRegister) {
+            await onRegister(completedForm.name, completedForm.email, completedForm.password);
           }
-
-          if (mode === "register" && onRegister) {
-            const res = await onRegister(completedForm.name, completedForm.email, completedForm.password);
-            if (res && typeof res === "object" && "success" in res && !(res as any).success) {
-              setSubmitError((res as any).error || "Произошла ошибка");
-            }
-          }
+          onClose();
         } catch (err) {
-          console.error("Callback error:", err);
+          setSubmitError(err instanceof Error ? err.message : "Произошла ошибка");
+        } finally {
+          setIsSubmitting(false);
         }
-      } else {
-        setSubmitError(result.error || "Произошла ошибка");
       }
     } catch (error) {
       setSubmitError("Неизвестная ошибка. Попробуйте еще раз.");
@@ -188,7 +174,6 @@ export function AuthModal({
       <AnimatePresence>
         {isOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              {/* Backdrop */}
               <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -197,7 +182,6 @@ export function AuthModal({
                   className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm"
               />
 
-              {/* Modal */}
               <motion.div
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -205,10 +189,8 @@ export function AuthModal({
                   transition={{ type: "spring", duration: 0.5 }}
                   className="relative z-50 w-full max-w-md bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] shadow-[0_0_60px_rgba(0,255,157,0.1)] overflow-hidden"
               >
-                {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-[#00FF9D]/5 to-transparent pointer-events-none" />
 
-                {/* Close button */}
                 <button
                     onClick={handleClose}
                     disabled={isLoading}
@@ -217,9 +199,7 @@ export function AuthModal({
                   <X className="w-5 h-5" />
                 </button>
 
-                {/* Content */}
                 <div className="relative p-8">
-                  {/* Logo */}
                   <motion.div
                       key={mode}
                       initial={{ scale: 0.8, opacity: 0 }}
@@ -232,7 +212,6 @@ export function AuthModal({
                     </div>
                   </motion.div>
 
-                  {/* Title */}
                   <motion.h2
                       key={`title-${mode}`}
                       initial={{ opacity: 0, y: -10 }}
@@ -248,7 +227,6 @@ export function AuthModal({
                         : "Создайте аккаунт и начните делиться"}
                   </p>
 
-                  {/* Общая ошибка */}
                   {submitError && (
                       <motion.div
                           initial={{ opacity: 0, y: -10 }}
@@ -261,10 +239,8 @@ export function AuthModal({
                       </motion.div>
                   )}
 
-                  {/* Form */}
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <AnimatePresence mode="wait">
-                      {/* Поле имени для регистрации */}
                       {mode === "register" && (
                           <motion.div
                               initial={{ opacity: 0, height: 0 }}
@@ -317,8 +293,6 @@ export function AuthModal({
                           </motion.div>
                       )}
                     </AnimatePresence>
-
-                    {/* Email поле */}
                     <div>
                       <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
@@ -339,8 +313,6 @@ export function AuthModal({
                           <p className="mt-1 text-sm text-[#FF4757]">{errors.email}</p>
                       )}
                     </div>
-
-                    {/* Пароль поле */}
                     <div>
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
@@ -373,8 +345,6 @@ export function AuthModal({
                           <p className="mt-1 text-sm text-[#FF4757]">{errors.password}</p>
                       )}
                     </div>
-
-                    {/* Submit Button */}
                     <motion.button
                         type="submit"
                         disabled={isLoading}
@@ -392,8 +362,6 @@ export function AuthModal({
                       )}
                     </motion.button>
                   </form>
-
-                  {/* Switch Mode */}
                   <div className="mt-6 text-center">
                     <p className="text-[#888888]">
                       {mode === "login"
@@ -409,7 +377,6 @@ export function AuthModal({
                     </p>
                   </div>
 
-                  {/* Информация о пароле */}
                   <div className="mt-4 text-sm text-[#555555] text-center">
                     <p>Пароль должен содержать минимум 6 символов</p>
                   </div>

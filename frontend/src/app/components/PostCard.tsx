@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Heart, MessageCircle, EllipsisVertical, Pen, Trash } from "lucide-react";
+import { Heart, EllipsisVertical, Pen, Trash } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CommentSection } from "./CommentSection";
 import { type Post } from "../types";
+import { getGradientAvatarData } from "../utils";
 
 interface PostCardProps {
     post: Post;
@@ -18,9 +18,7 @@ export function PostCard({
     onLike,
     onEdit,
     onDelete,
-    onComment,
 }: PostCardProps) {
-    const [showComments, setShowComments] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [imageModal, setImageModal] = useState(false);
 
@@ -34,6 +32,7 @@ export function PostCard({
         return "Только что";
     };
 
+    const avatarData = getGradientAvatarData(post.author.name || post.author.username || post.author.id || "U");
     return (
         <>
             <motion.article
@@ -43,11 +42,12 @@ export function PostCard({
             >
                 <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <img
-                            src={post.author.avatar}
-                            alt={post.author.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                        />
+                        <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white select-none"
+                            style={{ background: avatarData.color }}
+                        >
+                            {avatarData.letter}
+                        </div>
                         <div>
                             <p className="text-[#E0E0E0] font-semibold">{post.author.name}</p>
                             <p className="text-[#888888] text-sm">{formatDate(post.createdAt)}</p>
@@ -121,20 +121,7 @@ export function PostCard({
                             {post.likes}
                         </span>
                     </motion.button>
-
-                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowComments(!showComments)} className="flex items-center gap-2 group">
-                        <MessageCircle className="w-5 h-5 text-[#888888] group-hover:text-[#00FF9D] transition-colors" />
-                        <span className="text-sm text-[#888888] group-hover:text-[#00FF9D]">{post.commentsCount}</span>
-                    </motion.button>
                 </div>
-
-                <AnimatePresence>
-                    {showComments && onComment && (
-                        <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }}>
-                            <CommentSection postId={post.id} onComment={(text) => onComment(post.id, text)} />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </motion.article>
 
             <AnimatePresence>

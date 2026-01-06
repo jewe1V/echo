@@ -25,7 +25,6 @@ def slugify(text: str) -> str:
     return text.strip('-')
 
 def get_token_payload(auth_header: str) -> Optional[Dict]:
-    """Извлечение и валидация JWT токена."""
     if not auth_header or not auth_header.startswith('Bearer '):
         return None
     try:
@@ -39,7 +38,6 @@ def get_token_payload(auth_header: str) -> Optional[Dict]:
         return None
 
 def create_response(status_code: int, body: Dict, headers: Optional[Dict] = None) -> Dict:
-    """Создание стандартизированного HTTP ответа."""
     base_headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
@@ -71,7 +69,6 @@ def build_update_expression(data: Dict, current_time: datetime) -> Dict:
         'slug': data.get('slug')
     }
 
-    # Автогенерация slug если есть title
     if updatable_fields['title'] and not updatable_fields['slug']:
         updatable_fields['slug'] = slugify(updatable_fields['title'])
 
@@ -88,7 +85,6 @@ def build_update_expression(data: Dict, current_time: datetime) -> Dict:
     if not update_parts:
         raise ValueError('Нет полей для обновления')
 
-    # Добавляем время обновления
     update_parts.append("#updated_at = :updated_at")
     attr_names["#updated_at"] = "updated_at"
     attr_values[":updated_at"] = current_time.isoformat()
@@ -100,8 +96,6 @@ def build_update_expression(data: Dict, current_time: datetime) -> Dict:
     }
 
 def handler(event, context):
-    """Обработчик редактирования поста."""
-    # Инициализация DynamoDB с использованием переменных окружения
     dynamodb = boto3.resource(
         'dynamodb',
         endpoint_url=os.environ['YDB_ENDPOINT'],
@@ -119,17 +113,14 @@ def handler(event, context):
         if not (payload := get_token_payload(auth_header)) or not (user_id := payload.get('user_id')):
             return create_response(401, {'success': False, 'error': 'Требуется авторизация'})
 
-        # Парсинг запроса
         try:
             data = parse_request_body(event.get('body', '{}'))
         except ValueError as e:
             return create_response(400, {'success': False, 'error': str(e)})
 
-        # Валидация post_id
         if not (post_id := data.get('post_id', '').strip()):
             return create_response(400, {'success': False, 'error': 'Отсутствует post_id'})
 
-        # Проверка прав доступа
         try:
             post = posts_table.get_item(
                 Key={'post_id': post_id},
@@ -148,14 +139,12 @@ def handler(event, context):
         except Exception as e:
             return create_response(500, {'success': False, 'error': 'Ошибка при проверке поста'})
 
-        # Подготовка обновления
         current_time = datetime.utcnow()
         try:
             update_config = build_update_expression(data, current_time)
         except ValueError as e:
             return create_response(400, {'success': False, 'error': str(e)})
 
-        # Выполнение обновления
         try:
             response = posts_table.update_item(
                 Key={'post_id': post_id},

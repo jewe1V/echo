@@ -16,13 +16,13 @@ def create_tables_with_documentapi():
         KeySchema=[
             {
                 'AttributeName': 'user_id',
-                'KeyType': 'HASH'  # Partition key
+                'KeyType': 'HASH'
             }
         ],
         AttributeDefinitions=[
             {
                 'AttributeName': 'user_id',
-                'AttributeType': 'S'  # String
+                'AttributeType': 'S'
             },
             {
                 'AttributeName': 'email',
@@ -73,7 +73,6 @@ def create_tables_with_documentapi():
     print(f"✓ Таблица users создана")
     print(f"  Поля: user_id (PK), username, email, password_hash, display_name, role, created_at, updated_at, is_active")
 
-    # 2. Таблица постов с ВАШИМИ ПОЛЯМИ + объяснение slug и status
     posts_table = dynamodb.create_table(
         TableName='posts',
         KeySchema=[
@@ -156,7 +155,6 @@ def create_tables_with_documentapi():
     print(f"✓ Таблица posts создана")
     print(f"  Поля: post_id (PK), title, text, imgUrl, slug, status, author_id, created_at, updated_at, views_count, likes_count")
 
-    # 3. Таблица лайков (оставляем как есть)
     post_likes_table = dynamodb.create_table(
         TableName='post_likes',
         KeySchema=[
@@ -166,7 +164,7 @@ def create_tables_with_documentapi():
             },
             {
                 'AttributeName': 'user_id',
-                'KeyType': 'RANGE'  # Sort key
+                'KeyType': 'RANGE'
             }
         ],
         AttributeDefinitions=[
@@ -202,7 +200,6 @@ def create_tables_with_documentapi():
 
     print(f"✓ Таблица post_likes создана")
 
-    # 4. НОВАЯ таблица комментариев
     comments_table = dynamodb.create_table(
         TableName='comments',
         KeySchema=[

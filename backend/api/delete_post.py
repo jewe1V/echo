@@ -5,7 +5,6 @@ import jwt
 from datetime import datetime, timedelta
 
 def handler(event, context):
-    # Подключение к YDB
     dynamodb = boto3.resource(
         'dynamodb',
         endpoint_url=os.environ['YDB_ENDPOINT'],
@@ -17,7 +16,6 @@ def handler(event, context):
     posts_table = dynamodb.Table('posts')
 
     try:
-        # Проверка авторизации (как в предыдущей функции)
         headers = event.get('headers', {})
         auth_header = headers.get('Authorization', headers.get('authorization', ''))
 
@@ -52,7 +50,6 @@ def handler(event, context):
                 'body': json.dumps({'success': False, 'error': 'Неверный или истекший токен'})
             }
 
-        # Получение post_id
         query_params = event.get('queryStringParameters', {}) or {}
         post_id = query_params.get('post_id')
 
@@ -72,7 +69,6 @@ def handler(event, context):
                 'body': json.dumps({'success': False, 'error': 'Отсутствует post_id'})
             }
 
-        # Проверка поста
         try:
             post_response = posts_table.get_item(
                 Key={'post_id': post_id},

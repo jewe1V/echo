@@ -38,7 +38,6 @@ def handler(event, context):
                     'body': json.dumps({'error': 'User already exists'})
                 }
 
-            # 创建新用户
             user_id = str(uuid.uuid4())
             password_hash = bcrypt.hashpw(
                 data['password'].encode('utf-8'),
@@ -57,7 +56,6 @@ def handler(event, context):
                 'is_active': True
             })
 
-            # 生成JWT令牌
             token = jwt.encode({
                 'user_id': user_id,
                 'email': data['email'],
@@ -83,7 +81,6 @@ def handler(event, context):
             }
 
     elif event['httpMethod'] == 'GET' and 'path' in event and event['path'].endswith('/login'):
-        # 登录逻辑
         try:
             response = users_table.query(
                 IndexName='idx_email',
@@ -108,7 +105,6 @@ def handler(event, context):
                     'body': json.dumps({'error': 'Invalid credentials'})
                 }
 
-            # 生成JWT令牌
             token = jwt.encode({
                 'user_id': user['user_id'],
                 'email': user['email'],

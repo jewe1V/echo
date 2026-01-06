@@ -39,8 +39,7 @@ def create_response(status_code, body, headers=None):
         'body': json.dumps(body, cls=DecimalEncoder)
     }
 
-def handler(event, context):
-    # Инициализация DynamoDB
+def handler(event):
     dynamodb = boto3.resource('dynamodb',
                               endpoint_url=os.environ['YDB_ENDPOINT'],
                               region_name=os.environ['YDB_REGION'],
@@ -51,22 +50,18 @@ def handler(event, context):
     comments_table = dynamodb.Table('comments')
     posts_table = dynamodb.Table('posts')
     users_table = dynamodb.Table('users')
-
-    # Аутентификация
     headers = event.get('headers', {})
     auth_header = headers.get('Authorization') or headers.get('authorization')
 
     if not (payload := get_token_payload(auth_header)) or not (user_id := payload.get('user_id')):
         return create_response(401, {'success': False, 'error': 'Неверный токен'})
 
-    # Парсинг тела запроса
     try:
         body = event.get('body', '{}')
         data = json.loads(body) if isinstance(body, str) else body
     except:
         return create_response(400, {'success': False, 'error': 'Неверный формат JSON'})
 
-    # Валидация обязательных полей
     post_id = data.get('post_id', '').strip()
     text = data.get('text', '').strip()
 
@@ -82,7 +77,6 @@ def handler(event, context):
             'error': 'Комментарий слишком длинный (максимум 5000 символов)'
         })
 
-    # Проверка существования поста
     try:
         post = posts_table.get_item(
             Key={'post_id': post_id},
@@ -97,7 +91,6 @@ def handler(event, context):
     except Exception as e:
         return create_response(500, {'success': False, 'error': 'Ошибка при проверке поста'})
 
-    # Проверка пользователя
     try:
         user = users_table.get_item(
             Key={'user_id': user_id},
@@ -112,7 +105,6 @@ def handler(event, context):
     except:
         user = {}
 
-    # Проверка родительского комментария
     parent_comment_id = data.get('parent_comment_id')
     if parent_comment_id:
         try:
@@ -131,7 +123,6 @@ def handler(event, context):
                 'error': 'Ошибка при проверке родительского комментария'
             })
 
-    # Создание комментария
     comment_id = str(uuid.uuid4())
     current_time = datetime.utcnow()
 
@@ -149,7 +140,6 @@ def handler(event, context):
         comment_data['parent_comment_id'] = parent_comment_id
 
     try:
-        # Атомарные операции
         comments_table.put_item(Item=comment_data)
 
         posts_table.update_item(
@@ -158,7 +148,6 @@ def handler(event, context):
             ExpressionAttributeValues={':inc': 1, ':zero': 0}
         )
 
-        # Формирование ответа
         response_comment = {
             'comment_id': comment_id,
             'post_id': post_id,
