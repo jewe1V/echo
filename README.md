@@ -5,14 +5,15 @@
 
 ---
 
-## Требования
+## Особенности
 
 1. Реализован CRUD над постами
-2. Фреймворк React для фронтенда/ pyhton для взаимодействия с БД
-3. База данных YDB
-4. Object Storage для хранения картинок постов
-5. Cloud Functions
-6. API Gateway для всех запросов
+2. Фронтенд на React, билд хостится в Object Storage
+3. Pyhton для взаимодействия с БД через Cloud Functions
+4. База данных YDB
+5. Object Storage для хранения картинок постов
+6. Cloud Functions
+7. API Gateway для всех запросов
 
 ---
 
